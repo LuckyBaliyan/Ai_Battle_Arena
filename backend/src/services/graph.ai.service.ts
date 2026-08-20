@@ -107,8 +107,16 @@ const judgeNode: GraphNode<typeof State> = async (State) => {
             responseFormat: providerStrategy(z.object({
                   solution_1_score: z.number().min(0).max(10),
                   solution_2_score: z.number().min(0).max(10),
+                  solution_1_resoning: z.string(),
+                  solution_2_resoning: z.string(),
                   winner: z.enum(["solution_1", "solution_2"])
-            }))
+            })),
+            systemPrompt: `You are an expert evaluator. Compare the two solutions 
+            objectively based on correctness,relevance,
+            quality, completeness, reasoning, efficiency, and how well they address the given problem or question. 
+            Consider the context and requirements of the task, regardless of the domain. Give each solution a score 
+            from 0–10 with a concise justification. Do not favor verbosity or style over substance. 
+            Finally, select the stronger solution as the winner.`
       })
 
       const judgeResponse = await judge.invoke({
@@ -150,5 +158,5 @@ export default async function graphAIInvoke(userMessage: string) {
       });
 
       console.log(result);
-      return result.messages
+      return result.messages;
 };
