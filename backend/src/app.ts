@@ -12,7 +12,8 @@ app.get('/health', (req, res) => {
 
 
 app.post('/use-graph', async (req, res) => {
-      await graphAIInvoke(`give a diplomatic answer to "why AI is threat to humanity?"`);
+      await graphAIInvoke(`give a diplomatic answer to "why AI is threat to humanity but not more 
+            than 70 words in each soltuion?"`);
 
       res.status(200).json({
             message: "api hit sucessfully!"
