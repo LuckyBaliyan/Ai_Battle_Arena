@@ -1,17 +1,26 @@
 import express, { response } from "express";
 import graphAIInvoke from "./services/graph.ai.service.js";
+import cors from "cors";
 
 const app = express();
+app.use(express.json());
+
+app.use(cors({
+      origin: "http://localhost:5173",
+      methods: ["GET", "POST", "PUT", "DELETE"],
+      credentials: true,
+}));
+
 
 /**
  * health check route
- */
+*/
 app.get('/health', (req, res) => {
       res.status(200).json({ status: 'ok' });
 });
 
 
-app.post('/use-graph', async (req, res) => {
+/*app.post('/use-graph', async (req, res) => {
       await graphAIInvoke(`give a diplomatic answer to "why AI is threat to humanity but not more 
             than 70 words in each soltuion?"`);
 
@@ -19,5 +28,36 @@ app.post('/use-graph', async (req, res) => {
             message: "api hit sucessfully!"
       });
 });
+*/
+
+
+
+/**
+ *invoke graphAI with input from user
+ * @param input - the prompt from the user
+ * @returns the response from the graphAI
+ * @throws Error if the graphAI fails to invoke
+*/
+
+app.post('/invoke', async (req, res) => {
+      try {
+            const { input } = req.body;
+            console.log('Received input:', input);
+
+            const result = await graphAIInvoke(input);
+
+            console.log('Result:', result);
+            res.status(200).json({
+                  message: "Battle Executed Successfully!",
+                  success: true,
+                  data: result,
+            });
+
+      } catch (err) {
+            console.error('Error in /invoke:', err);
+            res.status(500).json({ success: false, error: err.message });
+      }
+});
+
 
 export default app;
