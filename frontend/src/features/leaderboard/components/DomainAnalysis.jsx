@@ -27,14 +27,14 @@ const DomainAnalysis = () => {
   ]
 
   return (
-    <div className="brutal-card bg-arena-black p-5 flex flex-col gap-5">
+    <div className="brutal-card text-black bg-arena-black p-5 flex flex-col gap-5">
       {/* Header */}
-      <h3 className="font-mono text-sm font-bold uppercase tracking-widest text-arena-white">
+      <h3 className="font-mono text-black text-sm font-bold uppercase tracking-widest text-arena-white">
         Domain Analysis
       </h3>
 
       {/* Subtext */}
-      <p className="font-sans text-xs text-arena-white/40 leading-relaxed border-l-2 border-arena-yellow pl-3">
+      <p className="font-sans text-black text-xs text-arena-white/40 leading-relaxed border-l-2 border-arena-yellow pl-3">
         Comparative performance across core cognitive domains.
         <br />
         Top 3 models visualized.
@@ -47,11 +47,11 @@ const DomainAnalysis = () => {
           return (
             <div key={domain.label}>
               {/* Domain label + scale */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-mono text-xs text-arena-white/60 uppercase tracking-widest">
+              <div className="flex text-black items-center justify-between mb-1">
+                <span className="font-mono text-black text-xs text-arena-white/60 uppercase tracking-widest">
                   {domain.label}
                 </span>
-                <span className="font-mono text-xs text-arena-white/30">SCALE: 0-100</span>
+                <span className="font-mono text-black text-xs text-arena-white/30">SCALE: 0-100</span>
               </div>
               {/* Stacked bar */}
               <div className="w-full h-5 brutal-border flex overflow-hidden">
@@ -80,7 +80,7 @@ const DomainAnalysis = () => {
               className="w-3 h-3 brutal-border flex-shrink-0"
               style={{ backgroundColor: m.legendColor }}
             />
-            <span className="font-mono text-xs text-arena-white/60">{m.name}</span>
+            <span className="font-mono text-black text-xs text-arena-white/60">{m.name}</span>
           </div>
         ))}
       </div>

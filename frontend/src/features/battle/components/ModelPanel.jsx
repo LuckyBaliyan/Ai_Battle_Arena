@@ -288,6 +288,7 @@ const ModelPanel = ({
         flex
         flex-col
         h-full
+        lg:max-w-[35vw]
         ${isWinner
           ? 'ring-4 ring-arena-yellow ring-offset-2'
           : ''
@@ -350,7 +351,7 @@ const ModelPanel = ({
         {isLoading ? (
 
           <p className="font-mono text-xs text-arena-white/40 cursor-blink">
-            AWAITING RESPONSE
+            AWAITING RESPONSE....
           </p>
 
         ) : solution ? (

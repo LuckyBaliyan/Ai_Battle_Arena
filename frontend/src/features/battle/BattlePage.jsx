@@ -234,12 +234,12 @@ const BattlePage = () => {
     setBattleData(null)
     setShowModal(false)
 
-    // const res = await invoke(prompt);
-    // console.log(res.data);
+    const res = await invoke(prompt);
+    console.log(res.data);
 
 
-    setBattleData(dummyBattleData);
-    setIsLoading(false)
+    setBattleData(res.data);
+    setIsLoading(false);
   }
 
   return (

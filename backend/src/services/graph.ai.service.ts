@@ -10,8 +10,9 @@ import {
 } from "@langchain/langgraph";
 
 import { z } from "zod";
-import { cohereModel, geminiModel, mistralaiModel } from "./model.service.js";
-import { createAgent, providerStrategy } from "langchain";
+import { cohereModel, mistralaiModel, GroqJudgeModel, groqClient } from "./model.service.js";
+import { mistralAgent, cohoreAgent } from "./ai.service.js";
+
 
 // single source of truth for the judge's output shape —
 // used both for the agent's responseFormat and for State validation
@@ -50,56 +51,240 @@ const State = new StateSchema({
 });
 
 //Start --> solution --> judge
-const solutionNode: GraphNode<typeof State> = async (State) => {
+/*const solutionNode: GraphNode<typeof State> = async (State) => {
+
       const [mistral_Solution, cohere_Solution] = await Promise.all([
-            mistralaiModel.invoke(State.messages[0].text),
-            cohereModel.invoke(State.messages[0].text)
+            mistralAgent.invoke(State.messages[0].text),
+            cohoreAgent.invoke(State.messages[0].text)
       ])
 
       return {
             solution_1: mistral_Solution.text,
             solution_2: cohere_Solution.text,
       }
-}
+}*/
 
-//soltuion --> judge --> end
+const solutionNode: GraphNode<typeof State> = async (State) => {
+
+      const [mistral_Solution, cohere_Solution] = await Promise.all([
+
+            mistralAgent.invoke({
+                  messages: [
+                        new HumanMessage(State.messages[0].text)
+                  ]
+            }),
+
+            cohoreAgent.invoke({
+                  messages: [
+                        new HumanMessage(State.messages[0].text)
+                  ]
+            })
+
+      ]);
+
+      const mistralMessages = mistral_Solution.messages;
+      const cohereMessages = cohere_Solution.messages;
+
+      const mistralLastMessage =
+            mistralMessages[mistralMessages.length - 1];
+
+      const cohereLastMessage =
+            cohereMessages[cohereMessages.length - 1];
+
+      return {
+            solution_1: String(mistralLastMessage?.content),
+            solution_2: String(cohereLastMessage?.content),
+      };
+};
+
+
+//since we can't create an agent here because groq is't implemented from langChain so we use directly Groq SDK
 const judgeNode: GraphNode<typeof State> = async (State) => {
-      console.log('invoking judge with state...');
+
+      console.log("invoking Groq judge with state...");
 
       const { solution_1, solution_2 } = State;
 
-      const judge = createAgent({
-            model: geminiModel,
-            tools: [],
-            responseFormat: providerStrategy(judgeSchema),
-            systemPrompt: `You are an expert evaluator. Compare the two solutions 
-            objectively based on correctness,relevance,
-            quality, completeness, reasoning, efficiency, and how well they address the given problem or question. 
-            Consider the context and requirements of the task, regardless of the domain. Give each solution a score 
-            from 0–10 with a concise justification. Do not favor verbosity or style over substance. 
-            Finally, select the stronger solution as the winner.`
-      })
+      const judgeResponse = await groqClient.chat.completions.create({
 
-      const judgeResponse = await judge.invoke({
+            // This comes from model.service.ts
+            // Example:
+            // openai/gpt-oss-20b
+            // openai/gpt-oss-120b
+            model: GroqJudgeModel,
+
             messages: [
-                  new HumanMessage(
-                        `You are a judge task with evalvaiting the quality of 2 solutions to a problem. The
-                        problem is: ${State.messages[0].text}. The first Solution is ${solution_1}. The 
-                        Second solution is ${solution_2}. Provide a score between 0 - 10 for each solution,
-                        where 0 means the solution is completely incorrect or irrelavent, and 10 means the
-                        solution is perfect and fully addresses the problem. Also give a concise reasoning
-                        for each score in solution_1_resoning and solution_2_resoning.`
-                  )
-            ]
-      })
 
-      const result = judgeResponse.structuredResponse;
-      console.log(result);
+                  {
+                        role: "system",
+
+                        content: `
+                                    You are an expert AI evaluator and judge.
+                                    
+                                    Your task is to objectively compare two AI-generated solutions
+                                    to the same problem.
+                                    
+                                    Evaluate both solutions based on:
+                                    
+                                    1. Correctness
+                                    2. Relevance
+                                    3. Quality
+                                    4. Completeness
+                                    5. Reasoning
+                                    6. Efficiency
+                                    7. Overall usefulness
+                                    
+                                    Rules:
+                                    
+                                    - Do not favor Solution 1 or Solution 2.
+                                    - Do not favor verbosity.
+                                    - For coding problems, consider correctness, complexity,
+                                      edge cases and implementation quality.
+                                    - For reasoning problems, prioritize logical correctness.
+                                    - For creative tasks, prioritize relevance and creativity.
+                                    - Give each solution a score from 0 to 10.
+                                    - Give concise reasoning for each score.
+                                    - Finally select the stronger solution as the winner.
+                                    
+                                    Return only the structured response.
+                                    `
+                  },
+
+                  {
+                        role: "user",
+
+                        content: `
+                                    The problem/question is:
+                                    
+                                    ${State.messages[0].text}
+                                    
+                                    
+                                    ================ SOLUTION 1 ================
+                                    
+                                    ${solution_1}
+                                    
+                                    
+                                    ================ SOLUTION 2 ================
+                                    
+                                    ${solution_2}
+                                    
+                                    
+                                    Compare both solutions and provide:
+                                    
+                                    - score for solution 1
+                                    - score for solution 2
+                                    - concise reasoning for solution 1
+                                    - concise reasoning for solution 2
+                                    - winner
+                                    `
+                  }
+
+            ],
+
+
+            /**
+             * GPT-OSS supports reasoning_effort:
+             * none / low / medium / high
+             *
+             * For your judge we want low latency.
+             */
+            reasoning_effort: "low",
+
+
+            /**
+             * Native Groq Structured Output
+             */
+            response_format: {
+
+                  type: "json_schema",
+
+                  json_schema: {
+
+                        name: "ai_battle_judgement",
+
+                        strict: true,
+
+                        schema: {
+
+                              type: "object",
+
+                              properties: {
+
+                                    solution_1_score: {
+                                          type: "number"
+                                    },
+
+                                    solution_2_score: {
+                                          type: "number"
+                                    },
+
+                                    solution_1_resoning: {
+                                          type: "string"
+                                    },
+
+                                    solution_2_resoning: {
+                                          type: "string"
+                                    },
+
+                                    winner: {
+                                          type: "string",
+
+                                          enum: [
+                                                "solution_1",
+                                                "solution_2"
+                                          ]
+                                    }
+
+                              },
+
+                              required: [
+                                    "solution_1_score",
+                                    "solution_2_score",
+                                    "solution_1_resoning",
+                                    "solution_2_resoning",
+                                    "winner"
+                              ],
+
+                              additionalProperties: false
+                        }
+                  }
+            }
+
+      });
+
+
+      /*
+       * GET GROQ RESPONSE
+      */
+
+      const rawResult =
+            judgeResponse.choices[0]?.message?.content;
+
+
+      if (!rawResult) {
+            throw new Error(
+                  "Groq judge returned an empty response"
+            );
+      }
+
+
+      /**
+       * PARSE JSON
+      */
+
+      const result = judgeSchema.parse(
+            JSON.parse(rawResult)
+      );
+
+      /**
+       * RETURN TO LANGGRAPH STATE
+      */
 
       return {
             judge_recommandation: result,
-      }
+      };
 }
+
 
 
 const graph = new StateGraph(State)
