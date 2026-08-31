@@ -14,6 +14,7 @@ type CONFIG = {
       readonly GROQ_API_KEY: string;
       readonly GROQ_AI_MODEL: string;
       readonly TAVLY_API_KEY: string;
+      readonly QWEN_MODEL: string;
 }
 
 const config: CONFIG = {
@@ -25,6 +26,10 @@ const config: CONFIG = {
       GROQ_AI_MODEL: 'openai/gpt-oss-20b',
 
       TAVLY_API_KEY: process.env.TAVLY_API_KEY || "",
+
+
+      QWEN_MODEL:
+            process.env.QWEN_MODEL || "qwen/qwen3-32b",
 }
 
 export default config;

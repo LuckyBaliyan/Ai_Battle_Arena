@@ -3,6 +3,7 @@ import { ChatMistralAI } from "@langchain/mistralai";
 import { ChatCohere } from "@langchain/cohere"
 import config from "../config/config.js";
 import Groq from "groq-sdk";;
+import { ChatGroq } from "@langchain/groq";
 
 /*export const geminiModel = new ChatGoogle({
       model: "gemini-flash-latest",
@@ -19,6 +20,12 @@ export const cohereModel = new ChatCohere({
       apiKey: config.COHERE_API_KEY,
 })
 
+
+
+export const qwenModel = new ChatGroq({
+      apiKey: config.GROQ_API_KEY,
+      model: config.GROQ_AI_MODEL,
+});
 
 
 
