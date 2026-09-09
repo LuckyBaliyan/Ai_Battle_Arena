@@ -13,8 +13,8 @@ const tavily = Tavily({
  */
 export const scrapWeb = async ({ query }: { query: string }) => {
       const results = await tavily.search(
-            query
-            , {
+            query,
+            {
                   maxResults: 5,
                   searchDepth: "advanced",  //krke dekh liya bhai bs extra credit fuk ra!!
             }

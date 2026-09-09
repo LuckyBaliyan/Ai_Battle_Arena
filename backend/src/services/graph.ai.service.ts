@@ -10,7 +10,7 @@ import {
 } from "@langchain/langgraph";
 
 import { z } from "zod";
-import { GroqJudgeModel, groqClient, mistralaiModel } from "./model.service.js";
+import { GroqJudgeModel, groqClient, mistralaiModel, qwenModel } from "./model.service.js";
 import { mistralAgent, cohoreAgent, qwenAgent, runQwenAgent } from "./ai.service.js";
 
 
@@ -242,8 +242,8 @@ const solutionNode: GraphNode<typeof State> = async (State) => {
 }
 */
 
-//Back to use Mistral Ai for the Judge Task
-const structuredJudge = mistralaiModel.withStructuredOutput(judgeSchema, {
+//Back to use qwen Ai for the Judge Task
+const structuredJudge = qwenModel.withStructuredOutput(judgeSchema, {
       name: "ai_battle_judgement",
       method: "jsonSchema",
 });
