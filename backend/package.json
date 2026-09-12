@@ -30,6 +30,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "groq-sdk": "^1.6.0",
-    "langchain": "^1.5.9"
+    "langchain": "^1.5.9",
+    "openai": "^7.15.0"
   }
 }
