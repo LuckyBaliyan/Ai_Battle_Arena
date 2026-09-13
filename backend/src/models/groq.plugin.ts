@@ -4,121 +4,243 @@ import { z } from "zod";
 import config from "../config/config.js";
 
 import type {
-  ModelPlugin,
-  ModelMessage,
-  ModelResponse,
-  GenerateOptions,
+      ModelPlugin,
+      ModelMessage,
+      ModelResponse,
+      GenerateOptions,
+      ModelTool,
 } from "./models.types.js";
 
+import { executeSearchTool } from "../tools/search.tool.js";
+
 type GroqPluginOptions = {
-  id: string;
-  name: string;
-  model: string;
+      id: string;
+      name: string;
+      model: string;
 };
 
 export class GroqPlugin implements ModelPlugin {
-  readonly id: string;
-  readonly name: string;
-  readonly provider = "Groq";
+      readonly id: string;
+      readonly name: string;
+      readonly provider = "Groq";
 
-  readonly capabilities = {
-    streaming: true,
-    toolCalling: true,
-    structuredOutput: true,
-    vision: false,
-    reasoning: true,
-  };
+      readonly capabilities = {
+            streaming: true,
+            toolCalling: true,
+            structuredOutput: true,
+            vision: false,
+            reasoning: true,
+      };
 
-  private client: Groq;
-  private modelName: string;
+      private client: Groq;
+      private modelName: string;
 
-  constructor(options: GroqPluginOptions) {
-    this.id = options.id;
-    this.name = options.name;
-    this.modelName = options.model;
+      constructor(options: GroqPluginOptions) {
+            this.id = options.id;
+            this.name = options.name;
+            this.modelName = options.model;
 
-    this.client = new Groq({
-      apiKey: config.GROQ_API_KEY,
-    });
-  }
+            this.client = new Groq({
+                  apiKey: config.GROQ_API_KEY,
+            });
+      }
 
-  async generate(
-    messages: ModelMessage[],
-    options?: GenerateOptions
-  ): Promise<ModelResponse> {
-    const groqMessages = messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
+      async generate(
+            messages: ModelMessage[],
+            options?: GenerateOptions
+      ): Promise<ModelResponse> {
+            const groqMessages: any[] = messages.map((message) => ({
+                  role: message.role,
+                  content: message.content,
+            }));
 
-    const request: any = {
-      model: this.modelName,
-      messages: groqMessages,
-    };
+            // ==========================================
+            // FIRST REQUEST
+            // ==========================================
 
-    if (options?.temperature !== undefined) {
-      request.temperature = options.temperature;
-    }
+            const request: any = {
+                  model: this.modelName,
+                  messages: groqMessages,
+                  temperature: options?.temperature ?? 0,
+                  parallel_tool_calls: false,
+            };
 
-    if (options?.maxTokens !== undefined) {
-      request.max_tokens = options.maxTokens;
-    }
+            if (options?.maxTokens !== undefined) {
+                  request.max_tokens = options.maxTokens;
+            }
 
-    const response = await this.client.chat.completions.create(request);
+            if (options?.tools && options.tools.length > 0) {
+                  request.tools = options.tools;
+                  request.tool_choice = "auto";
+            }
 
-    return {
-      text: response.choices[0]?.message?.content ?? "",
-    };
-  }
+            console.log(`🤖 Calling Groq: ${this.modelName}`);
 
-  async generateStructured<T>(
-    messages: ModelMessage[],
-    schema: unknown,
-    options?: GenerateOptions
-  ): Promise<T> {
-    const groqMessages = messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
+            const response =
+                  await this.client.chat.completions.create(request);
 
-    /*
-     * Convert Zod schema → JSON Schema
-     */
-    const jsonSchema =
-      schema &&
-      typeof schema === "object" &&
-      "_zod" in schema
-        ? z.toJSONSchema(schema as z.ZodType)
-        : schema;
+            const message = response.choices[0]?.message;
 
-    const request: any = {
-      model: this.modelName,
-      messages: groqMessages,
+            if (!message) {
+                  throw new Error("Groq returned an empty response");
+            }
 
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "evaluation",
-          strict: true,
-          schema: jsonSchema,
-        },
-      },
+            // ==========================================
+            // NO TOOL CALL
+            // ==========================================
 
-      reasoning_effort: "high",
-    };
+            if (!message.tool_calls || message.tool_calls.length === 0) {
+                  return {
+                        text: message.content ?? "",
+                  };
+            }
 
-    if (options?.maxTokens !== undefined) {
-      request.max_tokens = options.maxTokens;
-    }
+            // ==========================================
+            // TOOL CALL
+            // ==========================================
 
-    const response = await this.client.chat.completions.create(request);
+            console.log("🛠️ Groq requested a tool");
 
-    const content = response.choices[0]?.message?.content;
+            groqMessages.push(message);
 
-    if (!content) {
-      throw new Error("Groq returned an empty structured response");
-    }
+            for (const toolCall of message.tool_calls) {
+                  if (toolCall.function.name !== "searchInternet") {
+                        continue;
+                  }
 
-    return JSON.parse(content) as T;
-  }
+                  let query = "";
+
+                  try {
+                        const args = JSON.parse(toolCall.function.arguments);
+                        query = args.query;
+
+                        if (typeof query !== "string" || query.trim() === "") {
+                              throw new Error("Invalid search query");
+                        }
+                  } catch {
+                        throw new Error(
+                              `Invalid searchInternet arguments: ${toolCall.function.arguments}`
+                        );
+                  }
+
+                  console.log("🔎 Searching Tavily:", query);
+
+                  const result = await executeSearchTool(query);
+
+                  console.log("✅ Tavily search completed");
+
+                  groqMessages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: result,
+                  });
+            }
+
+            // ==========================================
+            // FINAL RESPONSE
+            // ==========================================
+
+            console.log("🤖 Sending Tavily result back to Groq...");
+
+            const finalMessages = [
+                  ...groqMessages,
+                  {
+                        role: "system",
+                        content:
+                              "The requested web search has already been completed. Use the tool result above to answer the user's question. Do not call any tools. Return the final answer directly.",
+                  },
+            ];
+
+            const finalResponse =
+                  await this.client.chat.completions.create({
+                        model: this.modelName,
+                        messages: finalMessages,
+                        tools: [],
+                        temperature: 0,
+                  });
+
+            const finalMessage =
+                  finalResponse.choices[0]?.message;
+
+            if (!finalMessage) {
+                  throw new Error("Groq returned an empty final response");
+            }
+
+            console.log("✅ Final Groq response received");
+
+            return {
+                  text: finalMessage.content ?? "",
+            };
+      }
+
+      async generateStructured<T>(
+            messages: ModelMessage[],
+            schema: unknown,
+            options?: GenerateOptions
+      ): Promise<T> {
+            const groqMessages = messages.map((message) => ({
+                  role: message.role,
+                  content: message.content,
+            }));
+
+            // ==========================================
+            // ZOD → JSON SCHEMA
+            // ==========================================
+
+            const jsonSchema =
+                  schema &&
+                        typeof schema === "object" &&
+                        "_zod" in schema
+                        ? z.toJSONSchema(schema as z.ZodType)
+                        : schema;
+
+            // ==========================================
+            // STRUCTURED REQUEST
+            // ==========================================
+
+            const request: any = {
+                  model: this.modelName,
+                  messages: groqMessages,
+
+                  response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                              name: "evaluation",
+                              strict: true,
+                              schema: jsonSchema,
+                        },
+                  },
+
+                  reasoning_effort: "high",
+                  temperature: options?.temperature ?? 0,
+            };
+
+            if (options?.maxTokens !== undefined) {
+                  request.max_tokens = options.maxTokens;
+            }
+
+            console.log(
+                  `🤖 Calling structured Groq model: ${this.modelName}`
+            );
+
+            const response =
+                  await this.client.chat.completions.create(request);
+
+            const content =
+                  response.choices[0]?.message?.content;
+
+            if (!content) {
+                  throw new Error(
+                        "Groq returned an empty structured response"
+                  );
+            }
+
+            try {
+                  return JSON.parse(content) as T;
+            } catch {
+                  throw new Error(
+                        `Groq returned invalid JSON: ${content}`
+                  );
+            }
+      }
 }

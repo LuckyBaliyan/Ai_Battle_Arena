@@ -1,8 +1,9 @@
-import express, { response } from "express";
+import express from "express";
 import graphAIInvoke from "./services/graph.ai.service.js";
 import cors from "cors";
 import { modelRegistry } from "./models/model.registry.js";
 import { z } from "zod";
+import { searchInternetTool } from "./tools/search.tool.js";
 
 const app = express();
 app.use(express.json());
@@ -161,6 +162,168 @@ const EvaluationSchema = z.object({
     testJudge().catch((error) => {
       console.error("\n❌ Judge test failed:");
       console.error(error);
-});*/
+});
+*/
+
+
+//tavily  + groq test
+
+/*
+console.log("🚀 Starting Groq test...");
+
+const model = modelRegistry.get("groq-gpt-oss-120b");
+
+console.log("🤖 Model loaded...");
+
+const response = await model.generate(
+      [
+            {
+                  role: "user",
+                  content: "What about weather in Delhi?",
+            },
+      ],
+      {
+            tools: [searchInternetTool],
+      }
+);
+
+console.log("✅ Model response received!");
+
+console.log(response.text);
+*/
+
+
+
+//taivly + openRoute test
+/*
+const model2 = modelRegistry.get("openrouter-llama");
+
+const res = await model2.generate(
+      [
+            {
+                  role: "user",
+                  content:
+                        "What about recent BRICS Held in delhi",
+            },
+      ],
+      {
+            tools: [searchInternetTool],
+      }
+);
+
+console.log("\n===== OPENROUTER + TAVILY TEST =====\n");
+console.log(res.text);
+*/
+
+
+/*
+const model3 = modelRegistry.get("cohere");
+
+const res3 = await model3.generate(
+      [
+            {
+                  role: "user",
+                  content:
+                        "What about the weather at Greater Noida today?",
+            },
+      ],
+      {
+            tools: [searchInternetTool],
+      }
+);
+
+console.log("\n===== COHERE + TAVILY TEST =====\n");
+console.log(res3.text);
+*/
+
+
+/*
+const result = await graphAIInvoke(
+      "What about the recent BRICS?"
+);
+
+console.log("\n================ RESULT ================\n");
+
+console.log("Solution 1:\n");
+console.log(result.solution_1);
+
+console.log("\nSolution 2:\n");
+console.log(result.solution_2);
+
+console.log("\nJudge Recommendation:\n");
+console.log(result.judge_recommandation);
+
+*/
+
+/*
+console.log("🚀 Starting 2-model battle test...");
+
+const groq = modelRegistry.get("groq-gpt-oss-120b");
+const cohere = modelRegistry.get("cohere");
+
+console.log("🤖 Both models loaded...");
+
+const userMessage =
+      "What are the latest major developments in artificial intelligence?";
+
+console.log("⚔️ Running both models...");
+
+const groqTool = structuredClone(searchInternetTool);
+const cohereTool = structuredClone(searchInternetTool);
+
+const [groqResponse, cohereResponse] = await Promise.all([
+  groq.generate(
+    [
+      {
+        role: "user",
+        content: userMessage,
+      },
+    ],
+    {
+      tools: [groqTool],
+    }
+  ),
+
+  cohere.generate(
+    [
+      {
+        role: "user",
+        content: userMessage,
+      },
+    ],
+    {
+      tools: [cohereTool],
+    }
+  ),
+]);
+
+
+console.log("\n==============================");
+console.log("🤖 GROQ 120B");
+console.log("==============================\n");
+console.log(groqResponse.text);
+
+console.log("\n==============================");
+console.log("🤖 COHERE");
+console.log("==============================\n");
+console.log(cohereResponse.text);
+
+console.log("\n✅ 2-MODEL BATTLE COMPLETED!");
+*/
+
+/*
+console.log("🚀 Starting Graph AI Battle test...");
+
+const result = await graphAIInvoke(
+      "What is the result of 1 + 1 in context of each java, c++ and Js"
+);
+
+console.log("\n==============================");
+console.log("🏆 GRAPH BATTLE RESULT");
+console.log("==============================\n");
+
+console.log(JSON.stringify(result, null, 2));
+
+console.log("\n✅ GRAPH BATTLE COMPLETED!");*/
 
 export default app;

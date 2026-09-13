@@ -3,6 +3,8 @@ import {
       HumanMessage,
       SystemMessage,
       AIMessage,
+      ToolMessage,
+      BaseMessage
 } from "@langchain/core/messages";
 
 import config from "../config/config.js";
@@ -13,6 +15,8 @@ import type {
       ModelResponse,
       GenerateOptions,
 } from "./models.types.js";
+
+import { executeSearchTool } from "../tools/search.tool.js";
 
 
 export class CoherePlugin implements ModelPlugin {
@@ -61,21 +65,72 @@ export class CoherePlugin implements ModelPlugin {
             });
       }
 
-
       async generate(
             messages: ModelMessage[],
             options?: GenerateOptions
       ): Promise<ModelResponse> {
 
-            const response = await this.model.invoke(
-                  this.convertMessages(messages)
-            );
+            let model = this.model;
+
+            if (options?.tools && options.tools.length > 0) {
+                  model = this.model.bindTools(
+                        options.tools as any
+                  ) as ChatCohere;
+            }
+
+            const langchainMessages: BaseMessage[] =
+                  this.convertMessages(messages);
+
+            const response = await model.invoke(langchainMessages);
+
+            // No tool call → final answer
+            if (
+                  !response.tool_calls ||
+                  response.tool_calls.length === 0
+            ) {
+                  return {
+                        text: response.text,
+                  };
+            }
+
+            // Add assistant response containing tool calls
+            langchainMessages.push(response);
+
+            // Execute requested tools
+            for (const toolCall of response.tool_calls) {
+
+                  if (toolCall.name !== "searchInternet") {
+                        continue;
+                  }
+
+                  const query =
+                        typeof toolCall.args === "object" &&
+                              toolCall.args !== null
+                              ? String(
+                                    (toolCall.args as { query?: string })
+                                          .query ?? ""
+                              )
+                              : String(toolCall.args);
+
+                  const result =
+                        await executeSearchTool(query);
+
+                  langchainMessages.push(
+                        new ToolMessage({
+                              content: result,
+                              tool_call_id: toolCall.id ?? "",
+                        })
+                  );
+            }
+
+            // Send tool result back to Cohere
+            const finalResponse =
+                  await model.invoke(langchainMessages);
 
             return {
-                  text: response.text,
+                  text: finalResponse.text,
             };
       }
-
 
       async generateStructured<T>(
             messages: ModelMessage[],

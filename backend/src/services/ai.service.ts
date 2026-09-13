@@ -1,6 +1,7 @@
 import { createAgent, SystemMessage, tool } from "langchain";
 import { scrapWeb } from "./webScrap.service.js";
 import { mistralaiModel, cohereModel, qwenModel, groqClient } from "./model.service.js";
+import { searchInternetTool } from "../tools/search.tool.js";
 import config from "../config/config.js";
 const now = new Date();
 
@@ -30,6 +31,7 @@ const searchWeb = tool(scrapWeb, {
 
 
 // Add this near the top of ai.service.ts, separate from the LangChain `searchWeb` tool
+/*
 const searchInternetTool = {
       type: "function" as const,
       function: {
@@ -48,6 +50,7 @@ const searchInternetTool = {
             },
       },
 };
+*/
 
 export const mistralAgent = createAgent({
       model: mistralaiModel,
@@ -120,6 +123,8 @@ export const qwenAgent = createAgent({
 
 
 //Direct Groq model to fix the structure issue of zod langchain in weSearch features
+
+
 
 const SYSTEM_PROMPT = `You are a helpful assistant participating in an AI Battle Arena.
 

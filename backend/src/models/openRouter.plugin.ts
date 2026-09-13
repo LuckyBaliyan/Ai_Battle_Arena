@@ -8,6 +8,8 @@ import type {
       GenerateOptions,
 } from "./models.types.js";
 
+import { executeSearchTool } from "../tools/search.tool.js";
+
 export class OpenRouterPlugin implements ModelPlugin {
       readonly id = "openrouter-llama";
       readonly name = "Llama 3.3 70B";
@@ -38,13 +40,13 @@ export class OpenRouterPlugin implements ModelPlugin {
             options?: GenerateOptions
       ): Promise<ModelResponse> {
 
-            const openRouterMessages =
+            const openRouterMessages: any[] =
                   messages.map((message) => ({
                         role: message.role,
                         content: message.content,
-                  })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+                  }));
 
-            const request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+            const request: any = {
                   model: this.modelName,
                   messages: openRouterMessages,
             };
@@ -57,11 +59,66 @@ export class OpenRouterPlugin implements ModelPlugin {
                   request.max_tokens = options.maxTokens;
             }
 
+            if (options?.tools && options.tools.length > 0) {
+                  request.tools = options.tools;
+                  request.tool_choice = "auto";
+            }
+
             const response =
                   await this.client.chat.completions.create(request);
 
+            const message = response.choices[0]?.message;
+
+            if (!message) {
+                  throw new Error("OpenRouter returned an empty response");
+            }
+
+            // No tool call → final answer
+            if (!message.tool_calls || message.tool_calls.length === 0) {
+                  return {
+                        text: message.content ?? "",
+                  };
+            }
+
+            // Add assistant tool-call message
+            openRouterMessages.push(message);
+
+            // Execute requested tools
+            for (const toolCall of message.tool_calls as any[]) {
+
+                  if (toolCall.function.name !== "searchInternet") {
+                        continue;
+                  }
+
+                  let query = "";
+
+                  try {
+                        const args =
+                              JSON.parse(toolCall.function.arguments);
+
+                        query = args.query;
+                  } catch {
+                        query = toolCall.function.arguments;
+                  }
+
+                  const result = await executeSearchTool(query);
+
+                  openRouterMessages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: result,
+                  });
+            }
+
+            // Send tool result back to OpenRouter
+            const finalResponse =
+                  await this.client.chat.completions.create({
+                        model: this.modelName,
+                        messages: openRouterMessages,
+                  });
+
             return {
-                  text: response.choices[0]?.message?.content ?? "",
+                  text: finalResponse.choices[0]?.message?.content ?? "",
             };
       }
 

@@ -10,8 +10,14 @@ import {
 } from "@langchain/langgraph";
 
 import { z } from "zod";
+
+/*
 import { GroqJudgeModel, groqClient, mistralaiModel, qwenModel } from "./model.service.js";
 import { mistralAgent, cohoreAgent, qwenAgent, runQwenAgent } from "./ai.service.js";
+*/
+
+import { modelRegistry } from "../models/model.registry.js";
+import { searchInternetTool } from "../tools/search.tool.js";
 
 
 // single source of truth for the judge's output shape —
@@ -53,6 +59,50 @@ const State = new StateSchema({
 
 const solutionNode: GraphNode<typeof State> = async (State) => {
 
+      const groq = modelRegistry.get("groq-gpt-oss-120b");
+      const cohere = modelRegistry.get("cohere");
+
+      const userMessage = State.messages[0].text;
+
+      const groqTool = structuredClone(searchInternetTool);
+      const cohereTool = structuredClone(searchInternetTool);
+
+      const [groqSolution, cohereSolution] = await Promise.all([
+
+            groq.generate(
+                  [
+                        {
+                              role: "user",
+                              content: userMessage,
+                        },
+                  ],
+                  {
+                        tools: [groqTool],
+                  }
+            ),
+
+            cohere.generate(
+                  [
+                        {
+                              role: "user",
+                              content: userMessage,
+                        },
+                  ],
+                  {
+                        tools: [cohereTool],
+                  }
+            ),
+
+      ]);
+
+      return {
+            solution_1: groqSolution.text,
+            solution_2: cohereSolution.text,
+      };
+};
+
+/*const solutionNode: GraphNode<typeof State> = async (State) => {
+
       const [qwen_Solution, cohere_Solution] = await Promise.all([
 
             runQwenAgent(State.messages[0].text),
@@ -75,7 +125,7 @@ const solutionNode: GraphNode<typeof State> = async (State) => {
             solution_1: String(qwenMessages),
             solution_2: String(cohereLastMessage?.content),
       };
-};
+};*/
 
 
 /*const judgeNode: GraphNode<typeof State> = async (State) => {
@@ -243,11 +293,13 @@ const solutionNode: GraphNode<typeof State> = async (State) => {
 */
 
 //Back to use qwen Ai for the Judge Task
-const structuredJudge = qwenModel.withStructuredOutput(judgeSchema, {
+/*const structuredJudge = qwenModel.withStructuredOutput(judgeSchema, {
       name: "ai_battle_judgement",
       method: "jsonSchema",
-});
+});*/
 
+
+/*
 const judgeNode: GraphNode<typeof State> = async (State) => {
 
       console.log("invoking Mistral judge with state...");
@@ -321,7 +373,83 @@ const judgeNode: GraphNode<typeof State> = async (State) => {
             judge_recommandation: result,
       };
 }
+*/
 
+const judgeNode: GraphNode<typeof State> = async (State) => {
+
+      console.log("invoking Groq GPT-OSS 120B judge with state...");
+
+      const judge = modelRegistry.get("groq-gpt-oss-120b");
+
+      const { solution_1, solution_2 } = State;
+
+      const result = await judge.generateStructured(
+            [
+                  {
+                        role: "system",
+                        content: `
+                              You are an expert AI evaluator and judge.
+
+                              Your task is to objectively compare two AI-generated solutions
+                              to the same problem.
+
+                              Evaluate both solutions based on:
+
+                              1. Correctness
+                              2. Relevance
+                              3. Quality
+                              4. Completeness
+                              5. Reasoning
+                              6. Efficiency
+                              7. Overall usefulness
+
+                              Rules:
+
+                              - Do not favor Solution 1 or Solution 2.
+                              - Do not favor verbosity.
+                              - For coding problems, consider correctness, complexity,
+                                edge cases and implementation quality.
+                              - For reasoning problems, prioritize logical correctness.
+                              - For creative tasks, prioritize relevance and creativity.
+                              - Give each solution a score from 0 to 10.
+                              - Give concise reasoning for each score.
+                              - Finally select the stronger solution as the winner.
+
+                              Return only the structured response.
+                        `,
+                  },
+                  {
+                        role: "user",
+                        content: `
+                              The problem/question is:
+
+                              ${State.messages[0].text}
+
+                              ================ SOLUTION 1 ================
+
+                              ${solution_1}
+
+                              ================ SOLUTION 2 ================
+
+                              ${solution_2}
+
+                              Compare both solutions and provide:
+
+                              - score for solution 1
+                              - score for solution 2
+                              - concise reasoning for solution 1
+                              - concise reasoning for solution 2
+                              - winner
+                        `,
+                  },
+            ],
+            judgeSchema
+      );
+
+      return {
+            judge_recommandation: result,
+      };
+};
 
 const graph = new StateGraph(State)
       .addNode("solution", solutionNode)

@@ -3,9 +3,28 @@ export type ModelMessage = {
       content: string;
 };
 
+export type ModelTool = {
+      type: "function";
+
+      function: {
+            name: string;
+            description: string;
+
+            parameters: {
+                  type: "object";
+                  properties: Record<string, unknown>;
+                  required: string[];
+                  additionalProperties?: boolean;
+            };
+
+            strict?: boolean;
+      };
+};
+
 export type GenerateOptions = {
       temperature?: number;
       maxTokens?: number;
+      tools?: ModelTool[];
 };
 
 export type ModelResponse = {
