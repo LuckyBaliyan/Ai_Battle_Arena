@@ -61,9 +61,12 @@ export class GroqPlugin implements ModelPlugin {
             const request: any = {
                   model: this.modelName,
                   messages: groqMessages,
-                  temperature: options?.temperature ?? 0,
+                  temperature: 0,
                   parallel_tool_calls: false,
+                  tools: options?.tools,
+                  tool_choice: "auto",
             };
+
 
             if (options?.maxTokens !== undefined) {
                   request.max_tokens = options.maxTokens;
@@ -142,12 +145,22 @@ export class GroqPlugin implements ModelPlugin {
 
             console.log("🤖 Sending Tavily result back to Groq...");
 
-            const finalMessages = [
-                  ...groqMessages,
+            const finalMessages: any[] = [
                   {
                         role: "system",
                         content:
-                              "The requested web search has already been completed. Use the tool result above to answer the user's question. Do not call any tools. Return the final answer directly.",
+                              "You are answering the user's question using the web search results provided below. " +
+                              "Do not call any tools. " +
+                              "Answer the user's original question directly and naturally.",
+                  },
+                  {
+                        role: "user",
+                        content:
+                              `Original question:\n\n${messages[0].content}\n\n` +
+                              `Web search results:\n\n${groqMessages
+                                    .filter((msg) => msg.role === "tool")
+                                    .map((msg) => msg.content)
+                                    .join("\n\n")}`,
                   },
             ];
 
@@ -163,7 +176,10 @@ export class GroqPlugin implements ModelPlugin {
                   finalResponse.choices[0]?.message;
 
             if (!finalMessage) {
-                  throw new Error("Groq returned an empty final response");
+                  throw new Error(
+                        "Groq returned an empty final response"
+                  );
+
             }
 
             console.log("✅ Final Groq response received");

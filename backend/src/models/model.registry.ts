@@ -43,7 +43,28 @@ class ModelRegistry {
 
             // Fighter 3 / Alternative
             this.register(
-                  new OpenRouterPlugin()
+                  new OpenRouterPlugin({
+                        id: "openrouter-ling",
+                        name: "Ling 3.0 Flash VL",
+                        model: "inclusionai/ling-3.0-flash-vl:free",
+                  })
+            );
+
+            // OpenRouter Model 2
+            this.register(
+                  new OpenRouterPlugin({
+                        id: "openrouter-llama",
+                        name: "Llama 3.3 70B",
+                        model: "meta-llama/llama-3.3-70b-instruct:free",
+                  })
+            );
+
+            this.register(
+                  new OpenRouterPlugin({
+                        id: "openrouter-nex-mini",
+                        name: "Nex-N2.5-Mini",
+                        model: "nex-agi/nex-n2.5-mini:free",
+                  })
             );
       }
 

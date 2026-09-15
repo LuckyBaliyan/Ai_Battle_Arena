@@ -10,9 +10,15 @@ import type {
 
 import { executeSearchTool } from "../tools/search.tool.js";
 
+type OpenRouterPluginOptions = {
+      id: string;
+      name: string;
+      model: string;
+};
+
 export class OpenRouterPlugin implements ModelPlugin {
-      readonly id = "openrouter-llama";
-      readonly name = "Llama 3.3 70B";
+      readonly id: string;
+      readonly name: string;
       readonly provider = "OpenRouter";
 
       readonly capabilities = {
@@ -24,11 +30,13 @@ export class OpenRouterPlugin implements ModelPlugin {
       };
 
       private client: OpenAI;
+      private modelName: string;
 
-      private modelName =
-            "inclusionai/ling-3.0-flash-vl:free";
+      constructor(options: OpenRouterPluginOptions) {
+            this.id = options.id;
+            this.name = options.name;
+            this.modelName = options.model;
 
-      constructor() {
             this.client = new OpenAI({
                   apiKey: config.OPEN_ROUTER_API_KEY,
                   baseURL: "https://openrouter.ai/api/v1",
@@ -70,11 +78,16 @@ export class OpenRouterPlugin implements ModelPlugin {
             const message = response.choices[0]?.message;
 
             if (!message) {
-                  throw new Error("OpenRouter returned an empty response");
+                  throw new Error(
+                        "OpenRouter returned an empty response"
+                  );
             }
 
-            // No tool call → final answer
-            if (!message.tool_calls || message.tool_calls.length === 0) {
+            // No tool call
+            if (
+                  !message.tool_calls ||
+                  message.tool_calls.length === 0
+            ) {
                   return {
                         text: message.content ?? "",
                   };
@@ -86,7 +99,10 @@ export class OpenRouterPlugin implements ModelPlugin {
             // Execute requested tools
             for (const toolCall of message.tool_calls as any[]) {
 
-                  if (toolCall.function.name !== "searchInternet") {
+                  if (
+                        toolCall.function.name !==
+                        "searchInternet"
+                  ) {
                         continue;
                   }
 
@@ -94,14 +110,18 @@ export class OpenRouterPlugin implements ModelPlugin {
 
                   try {
                         const args =
-                              JSON.parse(toolCall.function.arguments);
+                              JSON.parse(
+                                    toolCall.function.arguments
+                              );
 
                         query = args.query;
                   } catch {
-                        query = toolCall.function.arguments;
+                        query =
+                              toolCall.function.arguments;
                   }
 
-                  const result = await executeSearchTool(query);
+                  const result =
+                        await executeSearchTool(query);
 
                   openRouterMessages.push({
                         role: "tool",
@@ -110,7 +130,7 @@ export class OpenRouterPlugin implements ModelPlugin {
                   });
             }
 
-            // Send tool result back to OpenRouter
+            // Send tool result back
             const finalResponse =
                   await this.client.chat.completions.create({
                         model: this.modelName,
@@ -118,13 +138,15 @@ export class OpenRouterPlugin implements ModelPlugin {
                   });
 
             return {
-                  text: finalResponse.choices[0]?.message?.content ?? "",
+                  text:
+                        finalResponse.choices[0]?.message
+                              ?.content ?? "",
             };
       }
 
       async generateStructured<T>(
             messages: ModelMessage[],
-            schema: any,
+            schema: unknown,
             options?: GenerateOptions
       ): Promise<T> {
 
@@ -134,7 +156,9 @@ export class OpenRouterPlugin implements ModelPlugin {
                         content: message.content,
                   })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
-            const request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+            const request:
+                  OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
+            {
                   model: this.modelName,
                   messages: openRouterMessages,
 
@@ -144,20 +168,27 @@ export class OpenRouterPlugin implements ModelPlugin {
             };
 
             if (options?.temperature !== undefined) {
-                  request.temperature = options.temperature;
+                  request.temperature =
+                        options.temperature;
             }
 
             if (options?.maxTokens !== undefined) {
-                  request.max_tokens = options.maxTokens;
+                  request.max_tokens =
+                        options.maxTokens;
             }
 
             const response =
-                  await this.client.chat.completions.create(request);
+                  await this.client.chat.completions.create(
+                        request
+                  );
 
-            const content = response.choices[0]?.message?.content;
+            const content =
+                  response.choices[0]?.message?.content;
 
             if (!content) {
-                  throw new Error("OpenRouter returned empty response");
+                  throw new Error(
+                        "OpenRouter returned empty response"
+                  );
             }
 
             return JSON.parse(content) as T;
