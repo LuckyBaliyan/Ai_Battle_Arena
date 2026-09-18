@@ -7,7 +7,12 @@ export const searchInternetTool: ModelTool = {
       function: {
             name: "searchInternet",
             description:
-                  "Search the internet for current, recent, or time-sensitive information.",
+                  "Search the internet for current, recent, or time-sensitive information. " +
+                  "Use this tool when the user asks about latest, current, today, " +
+                  "recent, breaking news, or information that may have changed. " +
+                  "For time-sensitive searches, include the current year or date " +
+                  "in the search query when appropriate.",
+
 
             parameters: {
                   type: "object",

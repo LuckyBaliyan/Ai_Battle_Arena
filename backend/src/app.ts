@@ -2,8 +2,6 @@ import express from "express";
 import graphAIInvoke from "./services/graphs/standardGraph.ai.service.js";
 import cors from "cors";
 import { modelRegistry } from "./models/model.registry.js";
-import { z } from "zod";
-import { searchInternetTool } from "./tools/search.tool.js";
 
 const app = express();
 app.use(express.json());
@@ -45,20 +43,135 @@ app.get('/health', (req, res) => {
 app.post('/invoke', async (req, res) => {
       try {
             const { input, model1, model2 } = req.body;
+
             console.log('Received input:', input);
 
-            const result = await graphAIInvoke(input, model1, model2);
+            // -----------------------------
+            // SSE headers
+            // -----------------------------
 
-            console.log('Result:', result);
-            res.status(200).json({
-                  message: "Battle Executed Successfully!",
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+
+            res.flushHeaders();
+
+            // -----------------------------
+            // Helper to send SSE event
+            // -----------------------------
+
+            const sendEvent = (
+                  event: string,
+                  data: unknown
+            ) => {
+
+                  res.write(
+                        `event: ${event}\n` +
+                        `data: ${JSON.stringify(data)}\n\n`
+                  );
+
+            };
+
+            // -----------------------------
+            // Run graph
+            // -----------------------------
+
+            const result = await graphAIInvoke(
+                  input,
+                  model1,
+                  model2,
+                  // basically this callback event is 
+                  // just for sending events to the frontend 
+                  // in realtime basis like solu1 generated send that why we pass it to graph as callback
+                  //here await won't stop it sending to the frontend it just await for the graph to complete
+                  (event) => {
+
+                        console.log(
+                              '📡 Sending SSE:',
+                              event
+                        );
+
+                        sendEvent(
+                              event.event,
+                              event.data
+                        );
+
+                  }
+            );
+
+            // -----------------------------
+            // Final result
+            // -----------------------------
+
+            sendEvent('battle_result', {
                   success: true,
                   data: result,
             });
 
+            // Close SSE connection
+            res.end();
+
       } catch (err) {
-            console.error('Error in /invoke:', err);
-            res.status(500).json({ success: false, error: err.message });
+
+            console.error(
+                  'Error in /invoke:',
+                  err
+            );
+
+            // If SSE has already started,
+            // send error through SSE.
+            if (!res.headersSent) {
+
+                  res.status(500).json({
+                        success: false,
+                        error:
+                              err instanceof Error
+                                    ? err.message
+                                    : "Unknown error",
+                  });
+
+            } else {
+
+                  res.write(
+                        `event: error\n` +
+                        `data: ${JSON.stringify({
+                              message:
+                                    err instanceof Error
+                                          ? err.message
+                                          : "Unknown error",
+                        })}\n\n`
+                  );
+
+                  res.end();
+            }
+      }
+});
+
+
+/**
+ * @description get all registered models with thier details
+ */
+
+app.get("/models", (req, res) => {
+      try {
+            const models = modelRegistry.list();
+
+            res.status(200).json({
+                  success: true,
+                  count: models.length,
+                  models,
+            });
+
+      } catch (err) {
+            console.error("Error fetching models:", err);
+
+            res.status(500).json({
+                  success: false,
+                  error:
+                        err instanceof Error
+                              ? err.message
+                              : "Failed to fetch models",
+            });
       }
 });
 

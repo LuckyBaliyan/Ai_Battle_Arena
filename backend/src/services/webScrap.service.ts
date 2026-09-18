@@ -16,23 +16,22 @@ export const scrapWeb = async ({ query }: { query: string }) => {
             query,
             {
                   maxResults: 5,
-                  searchDepth: "advanced",  //krke dekh liya bhai bs extra credit fuk ra!!
+                  searchDepth: "advanced",
             }
       );
 
-      //instead of JSON.stringify use this to give ai a proper respose istead of a blob of string data.
-
       return results.results
             .map((item, index) => `
-                  Result ${index + 1}
-                  
-                  Title: ${item.title}
-                  
-                  Content:
-                  ${item.content}
-                  
-                  Source:
-                  ${item.url}
-                  `)
+SEARCH RESULT ${index + 1}
+
+Title:
+${item.title}
+
+Source:
+${item.url}
+
+Content:
+${item.content.slice(0, 3000)}
+            `)
             .join("\n\n--------------------\n\n");
-}
+};

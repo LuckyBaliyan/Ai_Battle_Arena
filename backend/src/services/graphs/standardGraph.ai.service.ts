@@ -6,6 +6,7 @@ import {
       START,
       END,
       StateGraph,
+      getWriter,
       type GraphNode,
 } from "@langchain/langgraph";
 
@@ -71,7 +72,7 @@ const State = new StateSchema({
                               next.solution_1 !== 0
                                     ? next.solution_1
                                     : current.solution_1,
-      
+
                         solution_2:
                               next.solution_2 !== 0
                                     ? next.solution_2
@@ -104,11 +105,74 @@ const State = new StateSchema({
 });
 
 
+
+const getSolverSystemPrompt = () => {
+      const today = new Date()
+            .toISOString()
+            .split("T")[0];
+
+      return `
+You are an AI assistant answering the user's question.
+
+Today's date is ${today}.
+
+IMPORTANT RULES:
+
+- For latest, current, today, recent, breaking, or
+  time-sensitive questions, ALWAYS use the web search tool.
+
+- For time-sensitive searches, include the current year
+  and, when useful, the full current date.
+
+- Treat search results as source material, not as automatically
+  verified facts.
+
+- Prefer information from reputable and authoritative sources.
+
+- Pay attention to the publication date of search results.
+
+- Do not present an older event as today's event.
+
+- Do not assume that a person, event, position, statistic,
+  or claim in a search result is correct.
+
+- Cross-check important or surprising claims against
+  multiple search results when possible.
+
+- Remove duplicate, irrelevant, outdated, or conflicting
+  results.
+
+- Do NOT simply copy or dump search results.
+
+- Synthesize the relevant information into a concise answer.
+
+- If reliable sources disagree or the available results are
+  insufficient to establish a fact, explicitly say so.
+
+- Never invent missing information.
+
+- Never fabricate names, dates, events, statistics, quotes,
+  positions, or sources.
+
+For news questions:
+- Prefer developments actually reported on or immediately
+  before today's date.
+- Clearly distinguish today's developments from background
+  information.
+- Do not include future events as if they already happened.
+
+Do not output tool-call syntax in your final answer.
+`;
+};
+
+
 // --------------------------------------------------
 // Solver 1
 // --------------------------------------------------
 
 const solver1Node: GraphNode<typeof State> = async (state) => {
+
+      const writer = getWriter();
 
       // Get whichever model frontend selected
       const model = modelRegistry.get(state.model_1);
@@ -121,10 +185,22 @@ const solver1Node: GraphNode<typeof State> = async (state) => {
             `🤖 Solver 1 using: ${model.name}`
       );
 
+      writer({
+            event: "solver_started",
+            data: {
+                  solver: "solver1",
+                  model: model.name,
+            },
+      });
+
       const start = performance.now();
 
       const result = await model.generate(
             [
+                  {
+                        role: "system",
+                        content: getSolverSystemPrompt(),
+                  },
                   {
                         role: "user",
                         content: userMessage,
@@ -141,6 +217,16 @@ const solver1Node: GraphNode<typeof State> = async (state) => {
       console.log(
             `✅ Solver 1 completed in ${generationTimeMs.toFixed(2)} ms`
       );
+
+      writer({
+            event: "solver_completed",
+            data: {
+                  solver: "solver1",
+                  model: model.name,
+                  solution: result.text,
+                  generationTimeMs,
+            },
+      });
 
       return {
             solution_1: result.text,
@@ -159,6 +245,8 @@ const solver1Node: GraphNode<typeof State> = async (state) => {
 
 const solver2Node: GraphNode<typeof State> = async (state) => {
 
+      const writer = getWriter();
+
       // Get whichever model frontend selected
       const model = modelRegistry.get(state.model_2);
 
@@ -170,10 +258,22 @@ const solver2Node: GraphNode<typeof State> = async (state) => {
             `🤖 Solver 2 using: ${model.name}`
       );
 
+      writer({
+            event: "solver_started",
+            data: {
+                  solver: "solver2",
+                  model: model.name,
+            },
+      });
+
       const start = performance.now();
 
       const result = await model.generate(
             [
+                  {
+                        role: "system",
+                        content: getSolverSystemPrompt(),
+                  },
                   {
                         role: "user",
                         content: userMessage,
@@ -186,6 +286,16 @@ const solver2Node: GraphNode<typeof State> = async (state) => {
 
       const generationTimeMs =
             performance.now() - start;
+
+      writer({
+            event: "solver_completed",
+            data: {
+                  solver: "solver2",
+                  model: model.name,
+                  solution: result.text,
+                  generationTimeMs,
+            },
+      });
 
       console.log(
             `✅ Solver 2 completed in ${generationTimeMs.toFixed(2)} ms`
@@ -208,6 +318,8 @@ const solver2Node: GraphNode<typeof State> = async (state) => {
 
 const judgeNode: GraphNode<typeof State> = async (state) => {
 
+      const writer = getWriter();
+
       console.log("⚖️ Invoking AI judge...");
 
       // For now judge is fixed.
@@ -219,6 +331,13 @@ const judgeNode: GraphNode<typeof State> = async (state) => {
             solution_1,
             solution_2,
       } = state;
+
+      writer({
+            event: "judge_started",
+            data: {
+                  judge: judge.name,
+            },
+      });
 
       const start = performance.now();
 
@@ -293,6 +412,15 @@ Compare both solutions and provide:
       const judgeTimeMs =
             performance.now() - start;
 
+      writer({
+            event: "judge_completed",
+            data: {
+                  judge: judge.name,
+                  judgeTimeMs,
+                  judge_recommendation: result,
+            },
+      });
+
       console.log(
             `⚖️ Judge completed in ${judgeTimeMs.toFixed(2)} ms`
       );
@@ -334,27 +462,86 @@ const graph = new StateGraph(State)
 // --------------------------------------------------
 // Graph Invoke
 // --------------------------------------------------
+type GraphEvent = {
+      event: string;
+      data?: unknown;
+};
 
 export default async function graphAIInvoke(
       userMessage: string,
       model1: string = "groq-gpt-oss-120b",
-      model2: string = "cohere"
+      model2: string = "cohere",
+      onEvent?: (event: GraphEvent) => void
 ) {
-
       model1 = model1 || "groq-gpt-oss-120b";
       model2 = model2 || "cohere";
 
       const start = performance.now();
 
-      const result = await graph.invoke({
-
-            messages: [
-                  new HumanMessage(userMessage),
-            ],
-
-            model_1: model1,
-            model_2: model2,
+      onEvent?.({
+            event: "battle_started",
+            data: {
+                  model1,
+                  model2,
+            },
       });
+
+      const stream = await graph.stream(
+            {
+                  messages: [
+                        new HumanMessage(userMessage),
+                  ],
+
+                  model_1: model1,
+                  model_2: model2,
+            },
+            {
+                  streamMode: ["updates", "custom"],
+            }
+      );
+
+      let result: any = {};
+
+      for await (const chunk of stream) {
+
+            console.log(
+                  "🌊 Graph stream chunk:",
+                  chunk
+            );
+
+            // -----------------------------------------
+            // Custom events
+            // -----------------------------------------
+
+            if (
+                  Array.isArray(chunk) &&
+                  chunk[0] === "custom"
+            ) {
+
+                  const customEvent = chunk[1] as GraphEvent;
+
+                  onEvent?.(customEvent);
+
+                  continue;
+            }
+
+            // -----------------------------------------
+            // Graph state updates
+            // -----------------------------------------
+
+            if (
+                  Array.isArray(chunk) &&
+                  chunk[0] === "updates"
+            ) {
+
+                  const update = chunk[1];
+
+                  result = {
+                        ...result,
+                        ...update,
+                  };
+            }
+      }
 
       const totalTimeMs =
             performance.now() - start;
@@ -362,6 +549,13 @@ export default async function graphAIInvoke(
       console.log(
             `🏁 Total graph time: ${totalTimeMs.toFixed(2)} ms`
       );
+
+      onEvent?.({
+            event: "battle_completed",
+            data: {
+                  totalTimeMs,
+            },
+      });
 
       return {
             ...result,

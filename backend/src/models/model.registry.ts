@@ -96,11 +96,13 @@ class ModelRegistry {
       }
 
 
-      list(): ModelPlugin[] {
-
-            return Array.from(
-                  this.models.values()
-            );
+      list() {
+            return Array.from(this.models.values()).map((model) => ({
+                  id: model.id,
+                  name: model.name,
+                  provider: model.provider,
+                  capabilities: model.capabilities,
+            }));
       }
 }
 
