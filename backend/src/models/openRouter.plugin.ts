@@ -16,6 +16,42 @@ type OpenRouterPluginOptions = {
       model: string;
 };
 
+const normalizeStructuredKeys = (
+      value: unknown
+): unknown => {
+
+      if (Array.isArray(value)) {
+            return value.map(normalizeStructuredKeys);
+      }
+
+      if (
+            value !== null &&
+            typeof value === "object"
+      ) {
+            const normalized: Record<string, unknown> = {};
+
+            for (const [key, val] of Object.entries(
+                  value
+            )) {
+                  const normalizedKey =
+                        key
+                              .replace(
+                                    /([a-z])([A-Z])/g,
+                                    "$1_$2"
+                              )
+                              .replace(/\s+/g, "_")
+                              .toLowerCase();
+
+                  normalized[normalizedKey] =
+                        normalizeStructuredKeys(val);
+            }
+
+            return normalized;
+      }
+
+      return value;
+};
+
 export class OpenRouterPlugin implements ModelPlugin {
       readonly id: string;
       readonly name: string;
@@ -310,47 +346,86 @@ export class OpenRouterPlugin implements ModelPlugin {
             options?: GenerateOptions
       ): Promise<T> {
 
-            const openRouterMessages =
-                  messages.map((message) => ({
-                        role: message.role,
-                        content: message.content,
-                  })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+            const jsonMessages = [
+                  ...messages,
 
-            const request:
-                  OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming =
-            {
-                  model: this.modelName,
-                  messages: openRouterMessages,
-
-                  response_format: {
-                        type: "json_object",
+                  {
+                        role: "user" as const,
+                        content: `
+      Return ONLY a valid JSON object.
+      
+      Do not use markdown.
+      Do not use code fences.
+      Do not include explanations outside the JSON.
+      
+      The JSON must contain exactly the fields required by the requested
+      structured response.
+                        `,
                   },
+            ];
+
+            const request: any = {
+                  model: this.modelName,
+                  messages: jsonMessages,
+                  temperature: options?.temperature ?? 0,
             };
 
-            if (options?.temperature !== undefined) {
-                  request.temperature =
-                        options.temperature;
+            if (options?.maxTokens !== undefined) {
+                  request.max_tokens = options.maxTokens;
             }
 
-            if (options?.maxTokens !== undefined) {
-                  request.max_tokens =
-                        options.maxTokens;
-            }
+            console.log(
+                  `🤖 Calling OpenRouter model without structured-output mode: ${this.modelName}`
+            );
 
             const response =
-                  await this.client.chat.completions.create(
-                        request
-                  );
+                  await this.client.chat.completions.create(request);
 
             const content =
                   response.choices[0]?.message?.content;
 
             if (!content) {
                   throw new Error(
-                        "OpenRouter returned empty response"
+                        "OpenRouter returned empty structured response"
                   );
             }
 
-            return JSON.parse(content) as T;
+            console.log(
+                  "📦 OpenRouter structured content:",
+                  content
+            );
+
+            let parsed: unknown;
+
+            try {
+                  parsed = JSON.parse(content);
+            } catch {
+                  throw new Error(
+                        `OpenRouter returned invalid JSON: ${content}`
+                  );
+            }
+
+            parsed = normalizeStructuredKeys(parsed);
+
+            if (
+                  schema &&
+                  typeof schema === "object" &&
+                  "safeParse" in schema &&
+                  typeof schema.safeParse === "function"
+            ) {
+                  const result = schema.safeParse(parsed);
+
+                  if (!result.success) {
+                        throw new Error(
+                              `OpenRouter returned JSON that does not match the schema: ${JSON.stringify(
+                                    result.error
+                              )}`
+                        );
+                  }
+
+                  return result.data as T;
+            }
+
+            return parsed as T;
       }
 }

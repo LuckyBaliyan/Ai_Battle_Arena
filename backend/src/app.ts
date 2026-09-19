@@ -1,5 +1,6 @@
 import express from "express";
 import graphAIInvoke from "./services/graphs/standardGraph.ai.service.js";
+import reasoningGraphAIInvoke from "./services/graphs/reasoningGraph.ai.service.js";
 import cors from "cors";
 import { modelRegistry } from "./models/model.registry.js";
 
@@ -42,7 +43,12 @@ app.get('/health', (req, res) => {
 
 app.post('/invoke', async (req, res) => {
       try {
-            const { input, model1, model2 } = req.body;
+            const {
+                  input,
+                  model1,
+                  model2,
+                  mode = "standard",
+            } = req.body;
 
             console.log('Received input:', input);
 
@@ -76,14 +82,15 @@ app.post('/invoke', async (req, res) => {
             // Run graph
             // -----------------------------
 
-            const result = await graphAIInvoke(
+            const invokeGraph =
+                  mode === "reasoning"
+                        ? reasoningGraphAIInvoke
+                        : graphAIInvoke;
+
+            const result = await invokeGraph(
                   input,
                   model1,
                   model2,
-                  // basically this callback event is 
-                  // just for sending events to the frontend 
-                  // in realtime basis like solu1 generated send that why we pass it to graph as callback
-                  //here await won't stop it sending to the frontend it just await for the graph to complete
                   (event) => {
 
                         console.log(
@@ -95,10 +102,8 @@ app.post('/invoke', async (req, res) => {
                               event.event,
                               event.data
                         );
-
                   }
             );
-
             // -----------------------------
             // Final result
             // -----------------------------

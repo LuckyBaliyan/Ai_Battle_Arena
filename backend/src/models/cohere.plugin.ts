@@ -22,14 +22,11 @@ import { executeSearchTool } from "../tools/search.tool.js";
 export class CoherePlugin implements ModelPlugin {
 
       readonly id = "cohere";
-
       readonly name = "Cohere";
-
       readonly provider = "Cohere";
 
-
       readonly capabilities = {
-            streaming: true,
+            streaming: false,
             toolCalling: true,
             structuredOutput: true,
             vision: false,

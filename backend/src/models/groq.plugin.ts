@@ -210,6 +210,12 @@ export class GroqPlugin implements ModelPlugin {
                         ? z.toJSONSchema(schema as z.ZodType)
                         : schema;
 
+            console.log(
+                  "🧾 Groq JSON Schema:",
+                  JSON.stringify(jsonSchema, null, 2)
+            );
+
+
             // ==========================================
             // STRUCTURED REQUEST
             // ==========================================
@@ -227,7 +233,7 @@ export class GroqPlugin implements ModelPlugin {
                         },
                   },
 
-                  reasoning_effort: "high",
+                  //reasoning_effort: "high",
                   temperature: options?.temperature ?? 0,
             };
 
