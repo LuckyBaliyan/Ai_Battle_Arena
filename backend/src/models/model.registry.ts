@@ -44,26 +44,47 @@ class ModelRegistry {
             // Fighter 3 / Alternative
             this.register(
                   new OpenRouterPlugin({
-                        id: "openrouter-ling",
-                        name: "Ling 3.0 Flash VL",
-                        model: "inclusionai/ling-3.0-flash-vl:free",
+                        id: "openrouter-model-1",
+                        name: config.OPENROUTER_MODEL_1_NAME,
+                        model: config.OPENROUTER_MODEL_1,
+                        capabilities: {
+                              streaming: false,
+                              toolCalling: true,
+                              structuredOutput: true,
+                              vision: true,
+                              reasoning: false,
+                        },
                   })
             );
 
             // OpenRouter Model 2
             this.register(
                   new OpenRouterPlugin({
-                        id: "openrouter-llama",
-                        name: "Llama 3.3 70B",
-                        model: "meta-llama/llama-3.3-70b-instruct:free",
+                        id: "openrouter-model-2",
+                        name: config.OPENROUTER_MODEL_2_NAME,
+                        model: config.OPENROUTER_MODEL_2,
+                        capabilities: {
+                              streaming: false,
+                              toolCalling: true,
+                              structuredOutput: true,
+                              vision: true,
+                              reasoning: false,
+                        },
                   })
             );
 
             this.register(
                   new OpenRouterPlugin({
-                        id: "openrouter-nex-mini",
-                        name: "Nex-N2.5-Mini",
-                        model: "nex-agi/nex-n2.5-mini:free",
+                        id: "openrouter-model-3",
+                        name: config.OPENROUTER_MODEL_3_NAME,
+                        model: config.OPENROUTER_MODEL_3,
+                        capabilities: {
+                              streaming: false,
+                              toolCalling: true,
+                              structuredOutput: true,
+                              vision: true,
+                              reasoning: false,
+                        },
                   })
             );
       }

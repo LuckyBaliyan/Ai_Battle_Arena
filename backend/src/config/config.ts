@@ -18,6 +18,12 @@ type CONFIG = {
       readonly TAVLY_API_KEY: string;
       readonly QWEN_MODEL: string;
       readonly GROQ_FIGHTER_MODEL: string;
+      readonly OPENROUTER_MODEL_1: string;
+      readonly OPENROUTER_MODEL_2: string;
+      readonly OPENROUTER_MODEL_3: string;
+      readonly OPENROUTER_MODEL_1_NAME: string;
+      readonly OPENROUTER_MODEL_2_NAME: string;
+      readonly OPENROUTER_MODEL_3_NAME: string;
       readonly GROQ_JUDGE_MODEL: string;
 }
 
@@ -41,6 +47,19 @@ const config: CONFIG = {
       GROQ_JUDGE_MODEL: process.env.GROQ_JUDGE_MODEL || "openai/gpt-oss-120b",
 
       OPEN_ROUTER_API_KEY: process.env.OPEN_ROUTER_API_KEY || "",
+
+      OPENROUTER_MODEL_1:
+            process.env.OPENROUTER_MODEL_1 || "",
+
+      OPENROUTER_MODEL_2:
+            process.env.OPENROUTER_MODEL_2 || "",
+
+      OPENROUTER_MODEL_3:
+            process.env.OPENROUTER_MODEL_3 || "",
+
+      OPENROUTER_MODEL_1_NAME: process.env.OPENROUTER_MODEL_1_NAME || "",
+      OPENROUTER_MODEL_2_NAME: process.env.OPENROUTER_MODEL_2_NAME || "",
+      OPENROUTER_MODEL_3_NAME: process.env.OPENROUTER_MODEL_3_NAME || "",
 }
 
 export default config;

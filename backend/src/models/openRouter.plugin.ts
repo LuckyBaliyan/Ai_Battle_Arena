@@ -6,6 +6,7 @@ import type {
       ModelMessage,
       ModelResponse,
       GenerateOptions,
+      ModelCapabilities
 } from "./models.types.js";
 
 import { executeSearchTool } from "../tools/search.tool.js";
@@ -14,6 +15,7 @@ type OpenRouterPluginOptions = {
       id: string;
       name: string;
       model: string;
+      capabilities: ModelCapabilities;
 };
 
 const normalizeStructuredKeys = (
@@ -55,15 +57,16 @@ const normalizeStructuredKeys = (
 export class OpenRouterPlugin implements ModelPlugin {
       readonly id: string;
       readonly name: string;
+      readonly capabilities: ModelCapabilities;
       readonly provider = "OpenRouter";
 
-      readonly capabilities = {
+     /* readonly capabilities = {
             streaming: false,
             toolCalling: true,
             structuredOutput: true,
             vision: false,
             reasoning: false,
-      };
+      };*/
 
       private client: OpenAI;
       private modelName: string;
@@ -72,6 +75,7 @@ export class OpenRouterPlugin implements ModelPlugin {
             this.id = options.id;
             this.name = options.name;
             this.modelName = options.model;
+            this.capabilities = options.capabilities;
 
             this.client = new OpenAI({
                   apiKey: config.OPEN_ROUTER_API_KEY,
